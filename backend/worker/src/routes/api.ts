@@ -7,7 +7,33 @@ import { routePrompt } from "../agents/router";
 import { runVisionAgent } from "../agents/vision";
 import { runSearchAgent } from "../agents/search";
 
-const api = new Hono<{ Bindings: Env }>();
+const api = new Hono<{ Bindings: Env; Variables: { authUserId: string } }>();
+
+// When Firebase is configured, every API request must carry a valid Firebase ID token.
+// In local guest mode (no key configured), the frontend's generated guest ID is accepted.
+api.use("*", async (c, next) => {
+  if (!c.env.FIREBASE_WEB_API_KEY) return next();
+  const token = c.req.header("Authorization")?.replace(/^Bearer\\s+/i, "");
+  if (!token) return c.json({ error: "Sign in is required." }, 401);
+  try {
+    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${c.env.FIREBASE_WEB_API_KEY}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: token })
+    });
+    if (!response.ok) return c.json({ error: "Your session is invalid or expired. Please sign in again." }, 401);
+    const data = await response.json() as { users?: Array<{ localId?: string }> };
+    const uid = data.users?.[0]?.localId;
+    if (!uid) return c.json({ error: "Could not verify your account." }, 401);
+    c.set("authUserId", uid);
+    await next();
+  } catch {
+    return c.json({ error: "Authentication service is unavailable." }, 503);
+  }
+});
+
+function userAllowed(c: { get: (key: "authUserId") => string | undefined }, requestedUserId: string) {
+  const verifiedId = c.get("authUserId");
+  return !verifiedId || verifiedId === requestedUserId;
+}
 const imageSchema = z.string().max(8_000_000).refine(v => /^https:\/\//.test(v) || /^data:image\/(png|jpeg|jpg|webp|gif);base64,/.test(v), "Images must be HTTPS URLs or supported image data URLs.");
 const chatSchema = z.object({
   prompt: z.string().trim().min(1).max(12000),
@@ -22,7 +48,7 @@ api.get("/health", c => c.json({ ok:true, service:"akshar-api", runtime:"cloudfl
 
 api.get("/conversations", async c => {
   const userId = c.req.query("userId")?.slice(0,128);
-  if (!userId) return c.json({ error:"userId is required" },400);
+  if (!userId) return c.json({ error:"userId is required" },400);\n  if (!userAllowed(c,userId)) return c.json({error:"Forbidden"},403);
   const { results } = await c.env.DB.prepare("SELECT id,title,created_at AS createdAt,updated_at AS updatedAt FROM conversations WHERE user_id=? ORDER BY updated_at DESC LIMIT 100").bind(userId).all();
   return c.json({ conversations: results });
 });
