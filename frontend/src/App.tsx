@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, Check, ChevronDown, CircleHelp, Code2, Copy, FileImage, Globe2, ImagePlus, Menu, MessageSquare, PanelLeftClose, Plus, Search, Settings2, Sparkles, Trash2, X } from "lucide-react";
+import { Activity, ArrowUp, Check, ChevronDown, CircleHelp, Code2, Copy, FileImage, Globe2, ImagePlus, Menu, MessageSquare, Plus, Search, Settings2, Sparkles, Trash2, X } from "lucide-react";
 
 type Role = "user" | "assistant";
 type Message = { id:string; role:Role; content:string; agent?:string; images?:string[]; sources?:Array<{title?:string;url?:string}> };
