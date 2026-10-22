@@ -24,5 +24,5 @@ Attach up to four HTTPS image URLs or base64 data URLs to `POST /api/chat` in th
 
 ## Production checklist
 - Replace Cloudflare D1/KV placeholder IDs and run remote migrations.
-- The current API uses the supplied user ID for ownership scoping and is **not production-authenticated**. Add Firebase ID-token verification or another trusted auth layer before public deployment.
+- Set `FIREBASE_WEB_API_KEY` as a Worker secret and configure the frontend Firebase variables to require verified Firebase ID tokens. Without that secret, the API accepts guest IDs for local development only; do not expose guest mode publicly.
 - Add rate limiting and Turnstile, set a production CORS origin, and review model-provider privacy and costs.
