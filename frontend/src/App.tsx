@@ -1,4 +1,6 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import { onAuthStateChanged, signInWithPopup, signOut, User } from "firebase/auth";
+import { auth, firebaseEnabled, googleProvider } from "../utils/firebase";
 import { Activity, ArrowUp, Check, ChevronDown, CircleHelp, Code2, Copy, FileImage, Globe2, ImagePlus, Menu, MessageSquare, Plus, Search, Settings2, Sparkles, Trash2, X } from "lucide-react";
 
 type Role = "user" | "assistant";
@@ -8,7 +10,8 @@ const API = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/,"");
 const userKey = "akshar-guest-id";
 function getUserId() { let id=localStorage.getItem(userKey); if(!id){id=crypto.randomUUID();localStorage.setItem(userKey,id)} return id; }
 async function request<T>(path:string, init?:RequestInit):Promise<T> {
-  const response=await fetch(`${API}/api${path}`,{...init,headers:{"Content-Type":"application/json",...(init?.headers||{})}});
+  const token = auth?.currentUser ? await auth.currentUser.getIdToken() : null;
+  const response=await fetch(`${API}/api${path}`,{...init,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`} : {}),...(init?.headers||{})}});
   const data=await response.json().catch(()=>({error:"The server returned an invalid response."}));
   if(!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
   return data as T;
@@ -16,7 +19,9 @@ async function request<T>(path:string, init?:RequestInit):Promise<T> {
 function newMessage(role:Role,content:string,extra:Partial<Message>={}):Message { return {id:crypto.randomUUID(),role,content,...extra}; }
 
 export default function App() {
-  const [userId] = useState(getUserId);
+  const [guestId] = useState(getUserId);
+  const [authUser,setAuthUser] = useState<User|null>(auth?.currentUser ?? null);
+  const userId = authUser?.uid || guestId;
   const [conversations,setConversations]=useState<Conversation[]>([]);
   const [activeId,setActiveId]=useState<string|null>(null);
   const [messages,setMessages]=useState<Message[]>([]);
@@ -34,7 +39,8 @@ export default function App() {
     try { const data=await request<{conversations:Conversation[]}>(`/conversations?userId=${encodeURIComponent(userId)}`); setConversations(data.conversations); }
     catch(e){setError(e instanceof Error?e.message:"Could not load conversations.");}
   }
-  useEffect(()=>{void loadConversations()},[]);
+  useEffect(()=>{ if(!auth) return; return onAuthStateChanged(auth,setAuthUser); },[]);
+  useEffect(()=>{void loadConversations();},[userId]);
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"})},[messages,loading]);
   async function openConversation(id:string) {
     setActiveId(id); setError("");
@@ -83,7 +89,7 @@ export default function App() {
       <div className="conversation-list">
         {conversations.length===0?<div className="empty-history">Your conversations<br/>will show up here.</div>:conversations.map(c=><div className={`conversation-item ${activeId===c.id?"selected":""}`} key={c.id}><button className="conversation-open" onClick={()=>void openConversation(c.id)}><MessageSquare size={14}/><span>{c.title||"New chat"}</span></button><button className="delete-chat" aria-label="Delete conversation" onClick={()=>void deleteConversation(c.id)}><Trash2 size={13}/></button></div>)}
       </div>
-      <div className="sidebar-bottom"><div className="user-avatar">Y</div><div className="user-meta"><strong>Guest session</strong><span>Local development</span></div><button className="icon-button" title="Settings are coming soon"><Settings2 size={16}/></button></div>
+      <div className="sidebar-bottom"><div className="user-avatar">{(authUser?.displayName||"Y").slice(0,1).toUpperCase()}</div><div className="user-meta"><strong>{authUser?.displayName||"Guest session"}</strong><span>{authUser?.email||"Local development"}</span></div>{authUser&&<button className="icon-button" title="Sign out" onClick={()=>void signOut(auth!)}><Settings2 size={16}/></button>}</div>
     </aside>
     <main className="main-panel">
       <header className="topbar"><div className="topbar-left"><button className="icon-button" aria-label="Toggle sidebar" onClick={()=>setSidebarOpen(v=>!v)}><Menu size={18}/></button><div className="breadcrumb"><span>Akshar</span><span className="crumb-slash">/</span><strong>{activeId?conversations.find(c=>c.id===activeId)?.title||"Chat":"New conversation"}</strong></div></div><div className="topbar-right"><span className="status-dot"/><span className="status-text">AI systems ready</span><button className="model-pill"><span className="model-orb"><Sparkles size={12}/></span> Akshar AI <ChevronDown size={13}/></button></div></header>
