@@ -19,5 +19,5 @@ export async function runSearchAgent(env: Env, prompt: string, history: Array<{r
     ...history.slice(-6),
     { role:"user", content:`Question: ${prompt}\n\nSearch results:\n${context}` }
   ]);
-  return { text, sources };
+  const result = { text, sources };\n  await env.CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 300 });\n  return result;
 }
