@@ -1,0 +1,5 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,title TEXT NOT NULL DEFAULT 'New chat',created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
+CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id,updated_at DESC);
+CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,user_id TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('user','assistant')),content TEXT NOT NULL,images_json TEXT,agent TEXT NOT NULL DEFAULT 'chat',created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id,created_at ASC);
